@@ -70,13 +70,6 @@ function blankSpan(text, index, length) {
   return text.slice(0, index) + ' '.repeat(length) + text.slice(index + length)
 }
 
-/** Gap between two spans. Overlap is distance 0. */
-function spanDistance(startA, endA, startB, endB) {
-  if (endA <= startB) return startB - endA
-  if (endB <= startA) return startA - endB
-  return 0
-}
-
 /** Every "N dkp" amount, left to right. "5dkp" and "6 dkp" both count, including 0. */
 function findDkpPrices(text) {
   const prices = []
@@ -93,100 +86,30 @@ function findDkpPrices(text) {
   return prices
 }
 
-function priceDistance(hit, price) {
-  return spanDistance(hit.index, hit.index + hit.length, price.index, price.index + price.length)
-}
-
-function priceIsAfter(hit, price) {
-  return price.index >= hit.index + hit.length
-}
-
-/** Nearest amount. An equal gap prefers the amount written after the name. */
-function closestPrice(hit, prices) {
-  let best = prices[0]
-  let bestDist = Infinity
-  let bestAfter = false
-  for (const price of prices) {
-    const dist = priceDistance(hit, price)
-    const after = priceIsAfter(hit, price)
-    if (dist < bestDist || (dist === bestDist && after && !bestAfter)) {
-      best = price
-      bestDist = dist
-      bestAfter = after
-    }
-  }
-  return best
-}
-
 /**
- * Give each character a different amount when the line has enough prices.
- * The chosen pairing is the one with the smallest total gap, so
- * "piama for 21dkp . necrophobia for 20dkp" does not hand Necrophobia 21
- * just because the period is shorter than the word "for".
- * A tie prefers amounts written after the name.
- * Extra characters share the nearest amount when the line has fewer prices.
+ * Pair names and prices in the order they are written.
+ * The first name gets the first amount, the second name the second amount, and so on.
+ * An item between a name and its amount does not change that pairing.
+ * When the line has one amount for several names, each name gets that amount.
+ * Further names past the last amount also get that last amount.
  */
 function assignCharacterPrices(nameHits, prices) {
-  if (!nameHits.length) return []
+  const ordered = [...nameHits].sort((a, b) => a.index - b.index || b.length - a.length)
   if (!prices.length) {
-    return nameHits.map((hit) => ({ characterName: hit.name, cost: 0, hasDkp: false }))
+    return ordered.map((hit) => ({ characterName: hit.name, cost: 0, hasDkp: false }))
   }
-  const chosen = prices.length >= nameHits.length
-    ? assignDistinctPrices(nameHits, prices)
-    : nameHits.map((hit) => closestPrice(hit, prices))
-  return nameHits.map((hit, i) => ({
-    characterName: hit.name,
-    cost: chosen[i].cost,
-    hasDkp: true,
-  }))
-}
-
-function assignmentScore(nameHits, prices, chosen) {
-  let sum = 0
-  let afterCount = 0
-  for (let i = 0; i < chosen.length; i++) {
-    const price = prices[chosen[i]]
-    sum += priceDistance(nameHits[i], price)
-    if (priceIsAfter(nameHits[i], price)) afterCount++
-  }
-  return { sum, afterCount }
-}
-
-function assignDistinctPrices(nameHits, prices) {
-  const n = nameHits.length
-  const m = prices.length
-  if (n > 6 || m > 10) return nameHits.map((hit) => closestPrice(hit, prices))
-  let best = null
-  const chosen = new Array(n)
-  const used = new Array(m).fill(false)
-  function rec(i, partial) {
-    if (best && partial > best.sum) return
-    if (i === n) {
-      const score = assignmentScore(nameHits, prices, chosen)
-      if (!best || score.sum < best.sum || (score.sum === best.sum && score.afterCount > best.afterCount)) {
-        best = { sum: score.sum, afterCount: score.afterCount, chosen: chosen.slice() }
-      }
-      return
-    }
-    for (let j = 0; j < m; j++) {
-      if (used[j]) continue
-      used[j] = true
-      chosen[i] = j
-      rec(i + 1, partial + priceDistance(nameHits[i], prices[j]))
-      used[j] = false
-    }
-  }
-  rec(0, 0)
-  return best.chosen.map((j) => prices[j])
+  return ordered.map((hit, i) => {
+    const price = prices[Math.min(i, prices.length - 1)]
+    return { characterName: hit.name, cost: price.cost, hasDkp: true }
+  })
 }
 
 /**
  * Parse loot log by matching against known character names and item names.
  * Longest whole item match wins. Character names are matched only after the item
  * text is removed, and only as whole tokens, so "deepmind" does not also add "mind".
- * Each character gets the DKP amount closest to their name. When one item is
- * awarded to two people at two prices, those prices stay paired with the
- * nearer name instead of both characters inheriting the first amount.
+ * Names and DKP amounts are paired in written order: the first name gets the
+ * first amount, the second name gets the second amount, and so on.
  */
 export function parseLootLogByMatch(paste, characterNamesList, itemNamesList) {
   const lines = (paste || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)

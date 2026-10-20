@@ -183,42 +183,42 @@ describe('parseLootLogByMatch', () => {
       ['Bobby', 'Bobbyson'],
       ['Some Item'],
     )
-    assert.deepEqual(both.characterNames, ['Bobbyson', 'Bobby'])
+    assert.deepEqual(both.characterNames, ['Bobby', 'Bobbyson'])
     assert.deepEqual(both.awards.map((award) => [award.characterName, award.cost]), [
-      ['Bobbyson', 3],
       ['Bobby', 3],
+      ['Bobbyson', 3],
     ])
     assert.equal(both.awards.every((award) => award.hasDkp), true)
   })
 
-  it('awards the same item to two characters at the price closest to each name', () => {
+  it('pairs names and prices in the order they are written', () => {
     const cases = [
       {
         line: "[Wed Oct 14 15:25:28 2026] Suppin says out of character, 'Bracer of Precision grats Kaerilai 6 dkp and grats Feels 5dkp'",
         characters: ['Kaerilai', 'Feels', 'Suppin'],
         items: ['Bracer of Precision'],
-        prices: { kaerilai: 6, feels: 5 },
+        awards: [['Kaerilai', 6], ['Feels', 5]],
         itemName: 'Bracer of Precision',
       },
       {
         line: "[Wed Oct 14 13:44:38 2026] Crushzilla tells Nagd:2, 'Tiny Jade Ring gratz to serro for 5dkp , muess 4dkp . '",
         characters: ['Serro', 'Muess', 'Crushzilla'],
         items: ['Tiny Jade Ring', 'Jade Ring'],
-        prices: { serro: 5, muess: 4 },
+        awards: [['Serro', 5], ['Muess', 4]],
         itemName: 'Tiny Jade Ring',
       },
       {
         line: "[Wed Sep 30 15:52:46 2026] Crushzilla says out of character, 'Boots of Despair gratz to piama for 21dkp . necrophobia for 20dkp . '",
         characters: ['Piama', 'Necrophobia'],
         items: ['Boots of Despair'],
-        prices: { piama: 21, necrophobia: 20 },
+        awards: [['Piama', 21], ['Necrophobia', 20]],
         itemName: 'Boots of Despair',
       },
       {
         line: "[Fri Aug 14 14:17:19 2026] Voracious says out of character, 'grats Bhodi Yttrium Studded Mantle 2dkp, grats Oopp 0dkp'",
         characters: ['Bhodi', 'Oopp', 'Voracious'],
         items: ['Yttrium Studded Mantle', 'Mantle'],
-        prices: { bhodi: 2, oopp: 0 },
+        awards: [['Bhodi', 2], ['Oopp', 0]],
         itemName: 'Yttrium Studded Mantle',
       },
     ]
@@ -226,23 +226,25 @@ describe('parseLootLogByMatch', () => {
       const [row] = parseLootLogByMatch(sample.line, sample.characters, sample.items)
       assert.equal(row.itemName, sample.itemName, sample.line)
       assert.equal(row.hasDkp, true, sample.line)
-      const byName = Object.fromEntries(row.awards.map((award) => [award.characterName.toLowerCase(), award]))
-      for (const [name, cost] of Object.entries(sample.prices)) {
-        assert.equal(byName[name]?.cost, cost, `${name} in ${sample.line}`)
-        assert.equal(byName[name]?.hasDkp, true, `${name} in ${sample.line}`)
-      }
-      assert.equal(Object.keys(byName).length, Object.keys(sample.prices).length, sample.line)
+      assert.deepEqual(
+        row.awards.map((award) => [award.characterName, award.cost, award.hasDkp]),
+        sample.awards.map(([name, cost]) => [name, cost, true]),
+        sample.line,
+      )
     }
   })
 
-  it('uses the price after a name when that name sits halfway between two amounts', () => {
+  it('pairs by written order when the second name sits nearer the first price', () => {
     const [row] = parseLootLogByMatch(
-      "[Fri Aug 14 14:17:19 2026] Voracious says out of character, 'Mantle 5dkp Bhodi 6dkp'",
-      ['Bhodi'],
-      ['Mantle'],
+      "[Fri Aug 14 14:17:19 2026] Voracious says out of character, 'grats Bhodi Yttrium Studded Mantle 2dkp Oopp later on 0dkp'",
+      ['Oopp', 'Bhodi'],
+      ['Yttrium Studded Mantle'],
     )
-    assert.equal(row.awards[0].cost, 6)
-    assert.equal(row.awards[0].hasDkp, true)
+    assert.equal(row.itemName, 'Yttrium Studded Mantle')
+    assert.deepEqual(row.awards.map((award) => [award.characterName, award.cost]), [
+      ['Bhodi', 2],
+      ['Oopp', 0],
+    ])
   })
 
   it('keeps a price that is written before the name with that name', () => {
