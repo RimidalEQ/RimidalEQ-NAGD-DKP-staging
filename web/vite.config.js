@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import deleteSiteUser from './api/delete-site-user.js'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
-const DEFAULT_SITE_TITLE = 'Guild DKP'
+const DEFAULT_SITE_TITLE = 'NAGD DKP - Development'
 
 function escapeHtml(value) {
   return value

@@ -1,4 +1,4 @@
-export const DEFAULT_SITE_TITLE = 'Guild DKP'
+export const DEFAULT_SITE_TITLE = 'NAGD DKP - Development'
 
 /** Browser tab title from VITE_SITE_TITLE, so each deployment can name itself. */
 export function siteTitle() {
