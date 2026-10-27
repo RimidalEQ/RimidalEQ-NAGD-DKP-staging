@@ -288,7 +288,7 @@ export default function Profile({ profile, onProfileUpdate }) {
         <div className="card profile-display-name">
           <h2 style={{ marginTop: 0 }}>Display Name</h2>
           <p style={{ color: '#71717a', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-            This is your name on the site. It is shown as Claimed by on game accounts you claim.
+            This is your display name on the site.
           </p>
           <input
             type="text"
@@ -309,7 +309,7 @@ export default function Profile({ profile, onProfileUpdate }) {
         <div className="card profile-ambiance">
           <h2 style={{ marginTop: 0 }}>Ambiance</h2>
           <p style={{ color: '#71717a', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
-            Optional visual theme for this browser. Does not change DKP data or permissions.
+            Set an optional visual theme for this browser.
           </p>
           <label className="raid-admin-option" style={{ cursor: 'pointer' }}>
             <input
@@ -407,7 +407,7 @@ export default function Profile({ profile, onProfileUpdate }) {
         ) : (
           <>
             <p style={{ color: '#71717a', marginBottom: profile?.unclaim_cooldown_until ? '0.5rem' : 0 }}>
-              You have not claimed an account. Go to an account page and click "Claim this account" to link it to your profile.
+              You have not claimed an account. On Game Accounts, choose Claim this account under an unclaimed row, or open an account page and claim it there.
             </p>
             {profile?.unclaim_cooldown_until && (() => {
               const until = new Date(profile.unclaim_cooldown_until)

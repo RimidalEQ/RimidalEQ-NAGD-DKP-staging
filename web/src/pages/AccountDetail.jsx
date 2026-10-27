@@ -39,6 +39,18 @@ function normalizeAccountTab(raw) {
   return ACCOUNT_TABS.includes(t) ? t : 'activity'
 }
 
+function normalizeShowWhichTics(value) {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((id) => String(id ?? '').trim()).filter(Boolean))]
+}
+
+function missingTicLabel(tic) {
+  const name = String(tic?.eventName ?? '').trim()
+  const order = tic?.eventOrder
+  if (order == null || order === '') return name || 'DKP tic'
+  return name ? `Event #${order} — ${name}` : `Event #${order}`
+}
+
 function buildItemIdMap(mobLoot) {
   const map = {}
   if (!mobLoot || typeof mobLoot !== 'object') return map
@@ -233,6 +245,7 @@ async function fetchAccountDetail(accountId, includeMissing = false) {
       dkpRaidTotal: accountEventRaidIds.has(raidKey) && fraction ? fraction.totalDkp : storedTotal,
       ticEarned: fraction ? fraction.ticEarned : 0,
       ticTotal: fraction ? fraction.ticTotal : 0,
+      missingTics: fraction?.missingTics || [],
       items: lootByRaid[raidKey] || [],
     }
   }).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
@@ -299,6 +312,11 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
   const [showMissingDetails, setShowMissingDetails] = usePersistedState(
     accountId ? `/accounts/detail:${accountId}:showMissingDetails` : '/accounts/detail:none:showMissingDetails',
     false
+  )
+  const [showWhichTics, setShowWhichTics] = usePersistedState(
+    accountId ? `/accounts/detail:${accountId}:showWhichTics` : '/accounts/detail:none:showWhichTics',
+    [],
+    normalizeShowWhichTics,
   )
   // Either control needs the positive-DKP raid universe (missing absences / tic details).
   const includeMissing = needsMissingRaidUniverse(showMissingDetails, onlyMissingRaids)
@@ -635,14 +653,14 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
                         You can claim again after {cooldownUntil.toLocaleString()}. An officer can remove this cooldown.
                       </span>
                     ) : (
-                      <>
-                        <button type="button" className="btn btn-ghost" style={{ fontSize: '0.875rem' }} onClick={handleClaimAccount} disabled={claimLoading}>
+                      <span className="claim-account-box">
+                        <button type="button" className="claim-account-link" onClick={handleClaimAccount} disabled={claimLoading}>
                           {claimLoading ? 'Claiming...' : 'Claim this account'}
                         </button>
                         {claimError && (
-                          <span className="error" style={{ marginLeft: '0.5rem', fontSize: '0.875rem' }}>{claimError}</span>
+                          <span className="error" style={{ fontSize: '0.875rem' }}>{claimError}</span>
                         )}
-                      </>
+                      </span>
                     )}
                   </span>
                 )
@@ -947,16 +965,16 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
         <div className="card">
           <h2 style={{ marginTop: 0 }}>Activity (earned DKP and items by raid)</h2>
           <p style={{ color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '0.75rem' }}>Reverse chronological. Each raid shows DKP earned and items won by the characters on this account.</p>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#d4d4d8' }}>
+          <div className="activity-tic-controls">
+            <label className="activity-tic-option">
               <input
                 type="checkbox"
                 checked={showMissingDetails}
                 onChange={(e) => setShowMissingDetails(e.target.checked)}
               />
-              Show missing tic details
+              Show all attendance tics, highlight any missed
             </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#d4d4d8' }}>
+            <label className="activity-tic-option">
               <input
                 type="checkbox"
                 checked={onlyMissingRaids}
@@ -967,7 +985,7 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
                   setActivityPage(1)
                 }}
               />
-              Only show raids with missing tics
+              Only show attended raids with some missed tics
             </label>
           </div>
           {visibleActivityRows.length === 0 ? (
@@ -995,57 +1013,68 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
                             </span>
                           )}
                         </p>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                          {totalPages > 10 && (
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              disabled={page <= 1}
-                              onClick={() => setActivityPage(1)}
-                            >
-                              First
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            disabled={page <= 1}
-                            onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
-                          >
-                            Previous
-                          </button>
-                          {totalPages <= 10 && (
-                            Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                              <button
-                                key={n}
-                                type="button"
-                                className={n === page ? 'btn' : 'btn btn-ghost'}
-                                style={{ minWidth: '2.25rem', padding: '0.25rem 0.5rem' }}
-                                onClick={() => setActivityPage(n)}
-                              >
-                                {n}
-                              </button>
-                            ))
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            disabled={page >= totalPages}
-                            onClick={() => setActivityPage((p) => Math.min(totalPages, p + 1))}
-                          >
-                            Next
-                          </button>
-                          {totalPages > 10 && (
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              disabled={page >= totalPages}
-                              onClick={() => setActivityPage(totalPages)}
-                            >
-                              Last
-                            </button>
-                          )}
-                        </div>
+                        <table className="activity-pager">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={page <= 1}
+                                  onClick={() => setActivityPage(1)}
+                                >
+                                  {'<< First Page'}
+                                </button>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={page <= 1}
+                                  onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                                >
+                                  {'< Previous Page'}
+                                </button>
+                              </td>
+                              {totalPages <= 10 && (
+                                <td>
+                                  <div className="activity-pager-pages">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                                      <button
+                                        key={n}
+                                        type="button"
+                                        className={n === page ? 'btn' : 'btn btn-ghost'}
+                                        onClick={() => setActivityPage(n)}
+                                      >
+                                        {n}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </td>
+                              )}
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={page >= totalPages}
+                                  onClick={() => setActivityPage((p) => Math.min(totalPages, p + 1))}
+                                >
+                                  {'Next Page >'}
+                                </button>
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={page >= totalPages}
+                                  onClick={() => setActivityPage(totalPages)}
+                                >
+                                  {'Last Page >>'}
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </>
                     )}
                     <ul style={{ listStyle: 'none', paddingLeft: 0, margin: 0 }}>
@@ -1072,9 +1101,35 @@ export default function AccountDetail({ isOfficer, profile, session, onProfileUp
                             {showMissingDetails && act.isMissingTics && (
                               <span style={{ marginLeft: '0.5rem', color: '#f97316' }}>
                                 {MIDDLE_DOT} Missing {act.missingCount} tic{act.missingCount === 1 ? '' : 's'}
+                                {(act.missingTics || []).length > 0 && (
+                                  <button
+                                    type="button"
+                                    className="activity-show-which"
+                                    aria-expanded={showWhichTics.includes(act.raid_id)}
+                                    onClick={() => {
+                                      const raidId = act.raid_id
+                                      setShowWhichTics((open) => (
+                                        open.includes(raidId)
+                                          ? open.filter((id) => id !== raidId)
+                                          : [...open, raidId]
+                                      ))
+                                    }}
+                                  >
+                                    {showWhichTics.includes(act.raid_id) ? 'hide which' : 'show which'}
+                                  </button>
+                                )}
                               </span>
                             )}
                           </p>
+                          {showMissingDetails && act.isMissingTics && showWhichTics.includes(act.raid_id) && (act.missingTics || []).length > 0 && (
+                            <ul className="activity-missing-tic-list">
+                              {act.missingTics.map((tic, index) => (
+                                <li key={`${tic.eventOrder ?? 'x'}-${tic.eventName}-${index}`}>
+                                  {missingTicLabel(tic)}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                           {act.items.length > 0 && (
                             <ul style={{ margin: '0.25rem 0 0 1.25rem', paddingLeft: 0, listStyle: 'none' }}>
                               {act.items.map((row, i) => {
