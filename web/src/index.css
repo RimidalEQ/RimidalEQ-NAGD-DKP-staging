@@ -223,17 +223,17 @@ html[data-ambiance-theme]:not([data-ambiance-theme="default"]) tr:hover {
 .activity-tic-option {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.65rem;
   width: 100%;
   margin: 0;
-  padding: 0.85rem 1rem;
-  border: 1px solid #f97316;
-  border-radius: 8px;
-  background: #27272a;
-  color: #fafafa;
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1.35;
+  padding: 0.2rem 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #e4e4e7;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.4;
   cursor: pointer;
 }
 .activity-tic-option input[type="checkbox"] {
@@ -263,14 +263,26 @@ html[data-ambiance-theme]:not([data-ambiance-theme="default"]) tr:hover {
   color: #fdba74;
   font-size: 0.9rem;
 }
+.activity-page-summary {
+  color: #e4e4e7;
+  font-size: 1.15rem;
+  margin: 0 0 0.75rem;
+}
+.activity-page-summary-page {
+  margin-left: 0.5rem;
+  font-weight: 700;
+}
 .activity-pager {
+  width: auto;
+  border: none;
   border-collapse: collapse;
   margin-bottom: 1rem;
 }
 .activity-pager td {
-  border: 1px solid #d4d4d8;
-  padding: 0.45rem 0.6rem;
-  background: #18181b;
+  border: none;
+  border-bottom: none;
+  padding: 0.15rem 0.45rem 0.15rem 0;
+  background: transparent;
   vertical-align: middle;
 }
 .activity-pager .btn { white-space: nowrap; }

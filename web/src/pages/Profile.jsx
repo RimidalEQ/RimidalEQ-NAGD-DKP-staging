@@ -1,12 +1,20 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
+import useSWR from 'swr'
 import { supabase } from '../lib/supabase'
 import { loadAccountActivity } from '../lib/accountData'
 import { discordRaidNameRequired, normalizeUiPreferences } from '../lib/uiPreferences'
 import { useAmbianceTheme } from '../lib/useAmbianceTheme'
 import DkpSiteDisclaimer from '../components/DkpSiteDisclaimer'
 import MyDkpStandings from '../components/MyDkpStandings'
+import AccountRaidActivity, { useAccountActivityControls } from '../components/AccountRaidActivity'
+import {
+  fetchAccountDetail,
+  getAccountDetailFromSession,
+  setAccountDetailInSession,
+} from './AccountDetail'
+import { accountDetailSwrKey } from '../lib/accountDetailMissingScope'
 
 const MAGELO_BASE = 'https://www.takproject.net/magelo/character.php?char='
 const MIDDLE_DOT = '\u00B7'
@@ -142,6 +150,23 @@ export default function Profile({ profile, onProfileUpdate }) {
   const [prefsSaving, setPrefsSaving] = useState(false)
   const [prefsError, setPrefsError] = useState('')
   const [prefsSaved, setPrefsSaved] = useState(false)
+  const activityControls = useAccountActivityControls(profile?.account_id)
+  const activityKey = profile?.account_id
+    ? accountDetailSwrKey(profile.account_id, activityControls.includeMissing)
+    : null
+  const { data: activityDetail, error: activitySwrError, isLoading: activityDetailLoading } = useSWR(
+    activityKey,
+    () => fetchAccountDetail(profile.account_id, activityControls.includeMissing),
+    {
+      fallbackData: activityKey ? getAccountDetailFromSession(profile.account_id, activityControls.includeMissing) : undefined,
+      dedupingInterval: 60_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      onSuccess: (data) => {
+        if (profile?.account_id && data) setAccountDetailInSession(profile.account_id, data, activityControls.includeMissing)
+      },
+    },
+  )
 
   useEffect(() => {
     setDisplayName(profile?.display_name || '')
@@ -443,8 +468,8 @@ export default function Profile({ profile, onProfileUpdate }) {
             </button>
           </div>
 
-          {accountLoading ? (
-            <p style={{ color: '#71717a' }}>Loading your account activity...</p>
+          {tab === 'characters' && accountLoading ? (
+            <p style={{ color: '#71717a' }}>Loading your characters...</p>
           ) : tab === 'characters' ? (
             <div className="card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -519,41 +544,16 @@ export default function Profile({ profile, onProfileUpdate }) {
           )}
 
           {tab === 'activity' ? (
-            <div className="card">
-              <h2 style={{ marginTop: 0 }}>Activity (earned DKP and items by raid)</h2>
-              <p style={{ color: '#a1a1aa', fontSize: '0.875rem', marginBottom: '1rem' }}>Reverse chronological. Each raid shows DKP earned and items won by the characters on this account.</p>
-              {activityByRaid.length === 0 ? (
-                <p style={{ color: '#71717a' }}>No raid activity recorded.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', paddingLeft: 0, margin: 0 }}>
-                  {activityByRaid.map((act) => (
-                    <li key={act.raid_id} style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #27272a' }}>
-                      <p style={{ margin: '0 0 0.25rem 0' }}>
-                        <Link to={`/raids/${act.raid_id}`}><strong>{act.raid_name}</strong></Link>
-                        {act.date && <span style={{ color: '#71717a', marginLeft: '0.5rem' }}>{act.date}</span>}
-                        <span style={{ marginLeft: '0.5rem' }}>{MIDDLE_DOT} <strong>Earned: {Number(act.dkpEarned ?? 0).toFixed(0)}{act.dkpRaidTotal != null && act.dkpRaidTotal > 0 ? ` / ${Number(act.dkpRaidTotal).toFixed(0)}` : ''}</strong> DKP</span>
-                      </p>
-                      {act.items.length > 0 && (
-                        <ul style={{ margin: '0.25rem 0 0 1.25rem', paddingLeft: 0, listStyle: 'none' }}>
-                          {act.items.map((row, i) => (
-                            <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.9rem' }}>
-                              <Link to={`/items/${encodeURIComponent(row.item_name || '')}`}>{row.item_name || '—'}</Link>
-                              {' '}{MIDDLE_DOT}{' '}
-                              {(row.assigned_character_name || row.assigned_char_id) ? (
-                                <Link to={`/accounts/${profile.account_id}`}>{row.assigned_character_name || row.assigned_char_id}</Link>
-                              ) : (
-                                <span style={{ color: '#71717a' }}>Unassigned</span>
-                              )}
-                              {row.cost != null && row.cost !== '' && <> {MIDDLE_DOT} {row.cost} DKP</>}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            activityDetailLoading && !activityDetail ? (
+              <p style={{ color: '#71717a' }}>Loading your account activity...</p>
+            ) : (
+              <>
+                {activitySwrError && (
+                  <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{activitySwrError.message || 'Could not load raid activity.'}</p>
+                )}
+                <AccountRaidActivity rows={activityDetail?.activityByRaid || []} controls={activityControls} />
+              </>
+            )
           ) : null}
         </>
       )}
